@@ -1,6 +1,4 @@
-import { MongoClient } from "mongodb";
-
-const client = new MongoClient(process.env.MONGODB_URI);
+import { getDatabase } from "../lib/mongo";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
@@ -11,8 +9,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    await client.connect();
-    const db = client.db("ecommerce");
+    const db = await getDatabase("ecommerce"); // Use centralized database connection
     const productsCollection = db.collection("products");
 
     const { category, page = 1, limit = 10 } = req.query;
@@ -43,7 +40,5 @@ export default async function handler(req, res) {
     return res
       .status(500)
       .json({ success: false, message: "Server Error", error: error.message });
-  } finally {
-    await client.close();
   }
 }

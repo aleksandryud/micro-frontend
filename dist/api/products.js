@@ -1,8 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = handler;
-const mongodb_1 = require("mongodb");
-const client = new mongodb_1.MongoClient(process.env.MONGODB_URI);
+const mongo_1 = require("../lib/mongo");
 async function handler(req, res) {
     if (req.method !== "GET") {
         res.setHeader("Allow", ["GET"]);
@@ -11,8 +10,7 @@ async function handler(req, res) {
             .json({ success: false, message: `Method ${req.method} Not Allowed` });
     }
     try {
-        await client.connect();
-        const db = client.db("ecommerce");
+        const db = await (0, mongo_1.getDatabase)("ecommerce"); // Use centralized database connection
         const productsCollection = db.collection("products");
         const { category, page = 1, limit = 10 } = req.query;
         const filter = category ? { category } : {};
@@ -38,8 +36,5 @@ async function handler(req, res) {
         return res
             .status(500)
             .json({ success: false, message: "Server Error", error: error.message });
-    }
-    finally {
-        await client.close();
     }
 }
