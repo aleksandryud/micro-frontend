@@ -6,6 +6,6 @@
     "module": "commonjs",
     "esModuleInterop": true
   },
-  "include": ["api/**/*"],
+  "include": ["api/**/*", "lib"],
   "exclude": ["node_modules"]
 }
