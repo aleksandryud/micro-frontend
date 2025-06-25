@@ -7,10 +7,6 @@
   ],
   "routes": [
     {
-      "src": "/api/cart/(.*)",
-      "dest": "/dist/api/cart/$1.js"
-    },
-    {
       "src": "/api/(.*)",
       "dest": "/dist/api/$1.js"
     }
