@@ -1,34 +1,32 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = handler;
-const mongo_1 = require("../lib/mongo");
+const productService_1 = require("../services/productService");
+const productService = new productService_1.ProductService();
 async function handler(req, res) {
-    if (req.method !== "GET") {
-        res.setHeader("Allow", ["GET"]);
-        return res
-            .status(405)
-            .json({ success: false, message: `Method ${req.method} Not Allowed` });
-    }
     try {
-        const db = await (0, mongo_1.getDatabase)("ecommerce"); // Use centralized database connection
-        const productsCollection = db.collection("products");
-        const { category, page = 1, limit = 10 } = req.query;
-        const filter = category ? { category } : {};
+        if (req.method !== "GET") {
+            res.setHeader("Allow", ["GET"]);
+            return res
+                .status(405)
+                .json({ success: false, message: `Method ${req.method} Not Allowed` });
+        }
+        const { category, page = "1", limit = "10" } = req.query;
         const pageNumber = parseInt(page, 10);
         const pageSize = parseInt(limit, 10);
-        const skip = (pageNumber - 1) * pageSize;
-        const products = await productsCollection
-            .find(filter)
-            .skip(skip)
-            .limit(pageSize)
-            .toArray();
-        const total = await productsCollection.countDocuments(filter);
+        if (isNaN(pageNumber) || isNaN(pageSize)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid pagination parameters",
+            });
+        }
+        const result = await productService.getProducts(category, pageNumber, pageSize);
         return res.status(200).json({
             success: true,
-            data: products,
-            total,
-            page: pageNumber,
-            limit: pageSize,
+            data: result.products,
+            total: result.total,
+            page: result.page,
+            limit: result.limit,
         });
     }
     catch (error) {

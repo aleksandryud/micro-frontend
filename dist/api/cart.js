@@ -1,58 +1,57 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = handler;
-const mongodb_1 = require("mongodb");
-const mongo_1 = require("../lib/mongo");
+const authenticateToken_1 = require("../middleware/authenticateToken");
+const cartService_1 = require("../services/cartService");
+const cartService = new cartService_1.CartService();
 async function handler(req, res) {
-    if (req.method !== "POST") {
-        res.setHeader("Allow", ["POST"]);
-        return res
-            .status(405)
-            .json({ success: false, message: `Method ${req.method} Not Allowed` });
-    }
-    try {
-        const db = await (0, mongo_1.getDatabase)("ecommerce");
-        const { productId } = req.body;
-        if (!productId) {
-            return res
-                .status(400)
-                .json({ success: false, message: "Product ID is required" });
+    await (0, authenticateToken_1.authenticateToken)(req, res, async () => {
+        try {
+            const userId = req.user.userId;
+            if (req.method === "GET") {
+                const cart = await cartService.getCart(userId); // Fetch the user's cart
+                return res.status(200).json({
+                    success: true,
+                    message: "Cart fetched successfully",
+                    cart,
+                });
+            }
+            if (req.method === "POST") {
+                const { productId } = req.body;
+                if (!productId) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Product ID is required",
+                    });
+                }
+                // Add to cart logic tied to userId
+                const result = await cartService.handleAddToCart(userId, productId);
+                return res.status(200).json(result);
+            }
+            if (req.method === "DELETE") {
+                const { productId } = req.body;
+                if (!productId) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Product ID is required",
+                    });
+                }
+                // Delete from cart logic tied to userId
+                const result = await cartService.handleDeleteFromCart(userId, productId);
+                return res.status(200).json(result);
+            }
+            res.setHeader("Allow", ["POST", "DELETE"]);
+            return res.status(405).json({
+                success: false,
+                message: `Method ${req.method} Not Allowed`,
+            });
         }
-        const product = await db
-            .collection("products")
-            .findOne({ _id: new mongodb_1.ObjectId(productId) });
-        if (!product) {
-            return res
-                .status(404)
-                .json({ success: false, message: "Product not found" });
+        catch (error) {
+            console.error(`Error in ${req.method} request to /api/cart:`, error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || "Internal Server Error",
+            });
         }
-        const existingCartItem = await db
-            .collection("cart")
-            .findOne({ productId: product._id });
-        if (existingCartItem) {
-            await db
-                .collection("cart")
-                .updateOne({ productId: product._id }, { $inc: { quantity: 1 } });
-            return res
-                .status(200)
-                .json({ success: true, message: "Product quantity updated in cart" });
-        }
-        const cartItem = {
-            productId: product._id,
-            name: product.name,
-            price: product.price,
-            quantity: 1,
-            addedAt: new Date(),
-        };
-        await db.collection("cart").insertOne(cartItem);
-        return res
-            .status(201)
-            .json({ success: true, message: "Product added to cart", cartItem });
-    }
-    catch (error) {
-        console.error("Error adding to cart:", error);
-        return res
-            .status(500)
-            .json({ success: false, message: "Server Error", error: error.message });
-    }
+    });
 }

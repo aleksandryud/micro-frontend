@@ -1,63 +1,66 @@
-import { ObjectId } from "mongodb";
-import { getDatabase } from "../lib/mongo";
+import { authenticateToken } from "../middleware/authenticateToken";
+import { CartService } from "../services/cartService";
+
+const cartService = new CartService();
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", ["POST"]);
-    return res
-      .status(405)
-      .json({ success: false, message: `Method ${req.method} Not Allowed` });
-  }
+  await authenticateToken(req, res, async () => {
+    try {
+      const userId = req.user.userId;
 
-  try {
-    const db = await getDatabase("ecommerce");
+      if (req.method === "GET") {
+        const cart = await cartService.getCart(userId); // Fetch the user's cart
+        return res.status(200).json({
+          success: true,
+          message: "Cart fetched successfully",
+          cart,
+        });
+      }
 
-    const { productId } = req.body;
+      if (req.method === "POST") {
+        const { productId } = req.body;
 
-    if (!productId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Product ID is required" });
+        if (!productId) {
+          return res.status(400).json({
+            success: false,
+            message: "Product ID is required",
+          });
+        }
+
+        // Add to cart logic tied to userId
+        const result = await cartService.handleAddToCart(userId, productId);
+        return res.status(200).json(result);
+      }
+
+      if (req.method === "DELETE") {
+        const { productId } = req.body;
+
+        if (!productId) {
+          return res.status(400).json({
+            success: false,
+            message: "Product ID is required",
+          });
+        }
+
+        // Delete from cart logic tied to userId
+        const result = await cartService.handleDeleteFromCart(
+          userId,
+          productId
+        );
+        return res.status(200).json(result);
+      }
+
+      res.setHeader("Allow", ["POST", "DELETE"]);
+      return res.status(405).json({
+        success: false,
+        message: `Method ${req.method} Not Allowed`,
+      });
+    } catch (error) {
+      console.error(`Error in ${req.method} request to /api/cart:`, error);
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Internal Server Error",
+      });
     }
-
-    const product = await db
-      .collection("products")
-      .findOne({ _id: new ObjectId(productId) });
-    if (!product) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Product not found" });
-    }
-
-    const existingCartItem = await db
-      .collection("cart")
-      .findOne({ productId: product._id });
-    if (existingCartItem) {
-      await db
-        .collection("cart")
-        .updateOne({ productId: product._id }, { $inc: { quantity: 1 } });
-      return res
-        .status(200)
-        .json({ success: true, message: "Product quantity updated in cart" });
-    }
-
-    const cartItem = {
-      productId: product._id,
-      name: product.name,
-      price: product.price,
-      quantity: 1,
-      addedAt: new Date(),
-    };
-
-    await db.collection("cart").insertOne(cartItem);
-
-    return res
-      .status(201)
-      .json({ success: true, message: "Product added to cart", cartItem });
-  } catch (error) {
-    console.error("Error adding to cart:", error);
-    return res
-      .status(500)
-      .json({ success: false, message: "Server Error", error: error.message });
-  }
+  });
 }
